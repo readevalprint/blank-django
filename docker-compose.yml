@@ -1,0 +1,40 @@
+version: '2'
+services:
+    db:
+        image: "postgres:9.6"
+        environment:
+            POSTGRES_USER: "postgres"
+            POSTGRES_PASSWORD: "pass"
+            POSTGRES_DB: "proj"
+
+    proj:
+        environment:
+            DJANGO_DEBUG: "true"
+            DATABASE_HOSTNAME: "db"
+            DATABASE_USERNAME: "postgres"
+            DATABASE_PASSWORD: "pass"
+            PGPASSWORD: "pass"
+            DATABASE_PORT: 5432
+            DATABASE_NAME: "proj"
+            ALLOWED_HOSTS: "*"
+            CORS_ORIGIN_WHITELIST: "*"
+            CELERY_BROKER_URL: "amqp://celery:celery@rabbitmq:5672//"
+        build: proj
+        image: local/proj
+
+        volumes:
+            - ./site-database:/code
+            - ./docker_home:/root/
+        hostname: proj
+        ports:
+            - "8000:8000"
+        links:
+            - db
+            - rabbitmq
+
+    rabbitmq:
+        image: "rabbitmq:3.6"
+        environment:
+         - RABBITMQ_DEFAULT_VHOST=/
+         - RABBITMQ_DEFAULT_USER=celery
+         - RABBITMQ_DEFAULT_PASS=celery

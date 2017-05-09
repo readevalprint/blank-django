@@ -1,0 +1,190 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: proj-deployment
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: proj
+    spec:
+      volumes:
+        - name: ssl
+          secret:
+            secretName: ssl
+            items:
+            - key: key
+              path: proj.key
+            - key: crt
+              path: proj.crt
+      containers:
+        - name: proj-server
+          imagePullPolicy: IfNotPresent
+          image: "$IMAGE"
+          command: ["/code/entrypoint.sh"]
+          args: ["start_server"]
+          volumeMounts:
+          - mountPath: /ssl
+            name: ssl
+          env:
+          - name: ALLOWED_HOSTS
+            value: "$ALLOWED_HOSTS"
+          - name: CELERY_BROKER_URL
+            value: "amqp://celery:celery@rabbitmq:5672//"
+          - name: DATABASE_NAME
+            value: proj
+          - name: DATABASE_HOSTNAME
+            value: db
+          - name: DATABASE_PORT
+            value: "5432"
+          - name: DATABASE_USERNAME
+            value: postgres
+          - name: PGPASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: db
+                key: password
+          - name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: db
+                key: password
+
+        - name: proj-worker
+          imagePullPolicy: IfNotPresent
+          image: "$IMAGE"
+          command: ["/code/entrypoint.sh"]
+          args: ["start_worker"]
+          env:
+          - name: CELERY_BROKER_URL
+            value: "amqp://celery:celery@rabbitmq:5672//"
+          - name: DATABASE_NAME
+            value: proj
+          - name: DATABASE_HOSTNAME
+            value: db
+          - name: DATABASE_PORT
+            value: "5432"
+          - name: DATABASE_USERNAME
+            value: postgres
+          - name: PGPASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: db
+                key: password
+          - name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: db
+                key: password
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: proj-service
+  labels:
+    app: proj
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    protocol: TCP
+    name: http
+    targetPort: 8080
+  - port: 443
+    protocol: TCP
+    name: https
+    targetPort: 8443
+  selector:
+    app: proj
+---
+
+apiVersion: extensions/v1beta1
+kind: "Deployment"
+metadata:
+  name: db
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
+        - name: db
+          image: postgres:9.6
+          ports:
+          - containerPort: 5432
+            name: db
+          env:
+          - name: POSTGRES_DB
+            value: proj
+          - name: POSTGRES_USER
+            value: postgres
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: db
+                key: password
+---
+
+apiVersion: extensions/v1beta1
+kind: "Deployment"
+metadata:
+  name: rabbitmq
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:3.6.9-management
+          ports:
+           - containerPort: 15672
+           - containerPort: 5672
+          env:
+           - name: RABBITMQ_DEFAULT_VHOST
+             value: "/"
+           - name: RABBITMQ_DEFAULT_USER
+             value: celery
+           - name: RABBITMQ_DEFAULT_PASS
+             value: celery
+---
+
+apiVersion: v1
+kind: "Service"
+metadata:
+ name: "rabbitmq"
+ labels:
+   app: rabbitmq
+spec:
+  ports:
+  - name: rabbitmqdashboard
+    port: 15672
+    targetPort: 15672
+  - name: rabbitmq
+    port: 5672
+    targetPort: 5672
+  selector:
+    app: rabbitmq
+  type: NodePort
+---
+
+apiVersion: v1
+kind: "Service"
+metadata:
+ name: "db"
+ labels:
+   app: db
+spec:
+  ports:
+  - name: "db"
+    protocol: "TCP"
+    port: 5432
+    targetPort: 5432
+  selector:
+    app: db
+  type: NodePort

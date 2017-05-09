@@ -1,0 +1,94 @@
+import json
+import string
+import jsonschema
+
+import logging
+
+from rest_framework import serializers
+
+from .models import Site
+
+logger = logging.getLogger(__name__)
+
+
+# Note: a combinations of JSONB in postgres and json parsing gives a nasty db
+# error
+# See: https://bugs.python.org/issue10976#msg159391
+# and
+# http://www.postgresql.org/message-id/E1YHHV8-00032A-Em@gemulon.postgresql.org
+def make_printable(obj):
+    if isinstance(obj, dict):
+        return {make_printable(k): make_printable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [make_printable(elem) for elem in obj]
+    elif isinstance(obj, str):
+        # Only printables
+        return ''.join(x for x in obj if x in string.printable)
+    else:
+        return obj
+
+
+class JSONSerializerMixin:
+
+    """ Serializer for JSONField -- required to make field writable"""
+
+    def to_internal_value(self, data):
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except Exception as e:
+                raise serializers.ValidationError(str(e))
+
+        return make_printable(data)
+
+    def to_representation(self, value):
+        class JSONish(type(value)):
+
+            """
+            Helper class to properly render JSON in the HTML form. Without this
+            it will either put the JSON as a string in the json response
+            or it will put a pyhton dict as a string in html and json renders
+            """
+
+            def __str__(self):
+                return json.dumps(self, sort_keys=True)
+
+        return JSONish(value)
+
+
+class JSONSerializer(JSONSerializerMixin, serializers.Serializer):
+    pass
+
+
+class JSONSerializerField(JSONSerializerMixin, serializers.CharField):
+    pass
+
+
+class JSONSpecValidator(object):
+
+    """
+    This validates the submitted json with the schema saved on
+    the Response.Survey.schema
+    """
+
+    def __init__(self, schema=None):
+        if schema is None:
+            self.schema = {}
+        else:
+            self.schema = schema
+
+    def __call__(self, value):
+        v = jsonschema.Draft4Validator(self.schema)
+        errors = sorted(v.iter_errors(value), key=lambda e: e.path)
+        if errors:
+            raise serializers.ValidationError(list(map(str, errors)))
+        return True
+
+
+class SiteSerializer(serializers.ModelSerializer):
+
+    data = JSONSerializerField(validators=[JSONSpecValidator()])
+
+    class Meta:
+        model = Site
+        fields = ['id', 'name', 'data']

@@ -1,0 +1,33 @@
+language: python
+
+sudo: required
+python:
+  - "3.4"
+
+services:
+  - docker
+
+cache:
+  directories:
+    - $HOME/.cache/pip
+
+install:
+  - bash ./travis_install.sh 
+
+before_script:
+  - docker-compose up -d db
+  - docker-compose run proj setupdb
+
+script:
+  - docker-compose run proj test_coverage
+
+after_success:
+    - docker --version
+    - export PATH=$PATH:$HOME/.local/bin
+    - eval $(aws ecr get-login --region eu-west-1)
+    - if [ "$TRAVIS_BRANCH" == "master" ]; then
+      docker tag local/proj:latest "$DOCKER_REGISTRY_HOST/proj:$TRAVIS_COMMIT";
+      docker push "$DOCKER_REGISTRY_HOST/proj:$TRAVIS_COMMIT";
+      openssl aes-256-cbc -K $encrypted_e38b6c6b72ac_key -iv $encrypted_e38b6c6b72ac_iv -in config.enc -out ./kube_config -d;
+      IMAGE="$DOCKER_REGISTRY_HOST/proj:$TRAVIS_COMMIT" ALLOWED_HOSTS="*" envsubst < ./config/deployment.yaml | kubectl apply --kubeconfig ./kube_config -f - ;
+      fi
