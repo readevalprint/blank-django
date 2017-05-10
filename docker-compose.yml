@@ -23,7 +23,7 @@ services:
         image: local/proj
 
         volumes:
-            - ./site-database:/code
+            - ./proj:/code
             - ./docker_home:/root/
         hostname: proj
         ports:

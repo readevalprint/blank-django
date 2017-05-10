@@ -66,7 +66,7 @@ EOF
     start_worker )
         cd /code/
         setup_db
-	C_FORCE_ROOT=1 /var/env/bin/celery -A sitedatabase worker -l info
+	C_FORCE_ROOT=1 /var/env/bin/celery -A project worker -l info
     ;;
     pip_freeze )
         pip_freeze
