@@ -1,4 +1,5 @@
-## Setup
+## Setup 
+[![Build Status](https://travis-ci.org/readevalprint/blank-django.svg?branch=master)](https://travis-ci.org/readevalprint/blank-django)
 
 ### Dependencies
 
