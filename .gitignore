@@ -2,7 +2,9 @@ static_root
 media_root
 docker_home
 *-e
-
+*.pem
+*.crt
+*.key
 ### Python ###
 # Byte-compiled / optimized / DLL files
 __pycache__/
