@@ -50,7 +50,6 @@ INSTALLED_APPS = [
     'corsheaders',
     'django_extensions',
     'django_celery_results',
-    'sites',
 ]
 
 MIDDLEWARE = [
